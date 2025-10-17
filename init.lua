@@ -28,6 +28,16 @@ vim.opt.rtp:prepend(lazypath)
 require('lazy').setup({
   { 'nvim-telescope/telescope.nvim', dependencies = { 'nvim-lua/plenary.nvim' } },
   { 'nvim-treesitter/nvim-treesitter', build = ':TSUpdate' },
+  {
+    'hrsh7th/nvim-cmp',
+    dependencies = {
+      'hrsh7th/cmp-nvim-lsp',
+      'hrsh7th/cmp-buffer',
+      'hrsh7th/cmp-path',
+      'L3MON4D3/LuaSnip',
+      'saadparwaiz1/cmp_luasnip',
+    },
+  },
 })
 
 -- 3) Telescope (fast fuzzy find; requires ripgrep installed) ------------------------
@@ -105,20 +115,75 @@ if ok_lsp then
   end
 
   -- Minimal servers; enable the ones you actually use ------------------------------
+  -- Merge completion capabilities so cmp can advertise itself to the servers.
+  local capabilities = vim.lsp.protocol.make_client_capabilities()
+  local ok_cmp_caps, cmp_nvim_lsp = pcall(require, 'cmp_nvim_lsp')
+  if ok_cmp_caps then
+    capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
+  end
   -- Iterate through the list and set up each server only if available.
   local servers = { 'lua_ls', 'gopls', 'pyright', 'tsserver', 'rust_analyzer' }
   for _, s in ipairs(servers) do
     if lspconfig[s] then
-      lspconfig[s].setup({ on_attach = on_attach, flags = { debounce_text_changes = 100 } })
+      lspconfig[s].setup({
+        on_attach = on_attach,
+        flags = { debounce_text_changes = 100 },
+        capabilities = capabilities,
+      })
     end
   end
 end
 
--- 6) A few quality-of-life mappings --------------------------------------------------
+-- 6) Completion (nvim-cmp + LuaSnip) -------------------------------------------------
+local ok_cmp, cmp = pcall(require, 'cmp')
+if ok_cmp then
+  local ok_luasnip, luasnip = pcall(require, 'luasnip')
+  cmp.setup({
+    snippet = {
+      expand = function(args)
+        if ok_luasnip then
+          luasnip.lsp_expand(args.body)
+        elseif vim.snippet then
+          vim.snippet.expand(args.body)
+        end
+      end,
+    },
+    mapping = cmp.mapping.preset.insert({
+      ['<C-Space>'] = cmp.mapping.complete(),
+      ['<CR>'] = cmp.mapping.confirm({ select = true }),
+      ['<Tab>'] = cmp.mapping(function(fallback)
+        if cmp.visible() then
+          cmp.select_next_item()
+        elseif ok_luasnip and luasnip.expand_or_jumpable() then
+          luasnip.expand_or_jump()
+        else
+          fallback()
+        end
+      end, { 'i', 's' }),
+      ['<S-Tab>'] = cmp.mapping(function(fallback)
+        if cmp.visible() then
+          cmp.select_prev_item()
+        elseif ok_luasnip and luasnip.jumpable(-1) then
+          luasnip.jump(-1)
+        else
+          fallback()
+        end
+      end, { 'i', 's' }),
+    }),
+    sources = cmp.config.sources({
+      { name = 'nvim_lsp' },
+      { name = 'path' },
+    }, {
+      { name = 'buffer' },
+    }),
+  })
+end
+
+-- 7) A few quality-of-life mappings --------------------------------------------------
 -- Quickly inspect diagnostics without leaving normal mode.
 vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Line diagnostics' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Diagnostics to LocList' })
 
--- 7) Colors inherit from the terminal palette --------------------------------------
+-- 8) Colors inherit from the terminal palette --------------------------------------
 -- No explicit colorscheme so Neovim mirrors whichever terminal theme is active.
 -- That’s it: ~120 lines, fast startup, great nav, syntax, and LSP without heavy deps.

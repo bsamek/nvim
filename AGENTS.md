@@ -1,0 +1,3 @@
+- Commit often.
+- Commit often.
+- Keep commits atomic; split distinct tasks into their own commits.

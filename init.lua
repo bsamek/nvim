@@ -5,7 +5,7 @@
 -- 0) Basic settings -----------------------------------------------------------------
 vim.g.mapleader = ' '
 vim.opt.number = true
-vim.opt.relativenumber = true
+vim.opt.relativenumber = false
 vim.opt.signcolumn = 'yes'
 vim.opt.ignorecase = true
 vim.opt.smartcase = true

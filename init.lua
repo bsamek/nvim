@@ -1,39 +1,42 @@
 -- ~/.config/nvim/init.lua
 -- Minimal, fast Neovim focused on speed + nav + LSP (no heavy IDE stack)
 -- Plugins: lazy.nvim, Telescope (with ripgrep), Treesitter, native LSP only
+-- The config is intentionally lean; comments explain the intent of each block.
 
 -- 0) Basic settings -----------------------------------------------------------------
-vim.g.mapleader = ' '
-vim.opt.number = true
-vim.opt.relativenumber = false
-vim.opt.signcolumn = 'yes'
-vim.opt.ignorecase = true
-vim.opt.smartcase = true
-vim.opt.updatetime = 200     -- faster CursorHold/diagnostics
-vim.opt.timeoutlen = 400     -- snappy mappings
-vim.opt.termguicolors = true
+vim.g.mapleader = ' '        -- space as leader keeps combos easy on the fingers
+vim.opt.number = true        -- show absolute line numbers for quick navigation
+vim.opt.relativenumber = false -- rely on absolute numbers only
+vim.opt.signcolumn = 'yes'   -- never shift text when diagnostics appear
+vim.opt.ignorecase = true    -- default searches ignore case
+vim.opt.smartcase = true     -- ...but respect case when the query has capitals
+vim.opt.updatetime = 200     -- faster CursorHold/diagnostics feedback
+vim.opt.timeoutlen = 400     -- shorten mapped key timeout for a snappier feel
+vim.opt.termguicolors = false  -- rely on terminal palette so colors follow the terminal
 
 -- 1) Bootstrap lazy.nvim -------------------------------------------------------------
 local lazypath = vim.fn.stdpath('data') .. '/lazy/lazy.nvim'
 if not vim.loop.fs_stat(lazypath) then
+  -- Install lazy.nvim on first run; this avoids manual bootstrap steps
   vim.fn.system({ 'git', 'clone', '--filter=blob:none',
     'https://github.com/folke/lazy.nvim.git', '--branch=stable', lazypath })
 end
 vim.opt.rtp:prepend(lazypath)
 
 -- 2) Plugins ------------------------------------------------------------------------
+-- Keep the plugin list tiny: fuzzy finding, syntax trees, and dependencies.
 require('lazy').setup({
   { 'nvim-telescope/telescope.nvim', dependencies = { 'nvim-lua/plenary.nvim' } },
   { 'nvim-treesitter/nvim-treesitter', build = ':TSUpdate' },
-  -- Add a lightweight colorscheme (optional)
-  { 'shaunsingh/nord.nvim' },
 })
 
 -- 3) Telescope (fast fuzzy find; requires ripgrep installed) ------------------------
 local ok_telescope, telescope = pcall(require, 'telescope')
 if ok_telescope then
+  -- Telescope gives fuzzy finding over files, text, buffers, etc.
   telescope.setup({
     defaults = {
+      -- Move through lists with Ctrl+j / Ctrl+k in insert mode
       mappings = {
         i = { ['<C-j>'] = 'move_selection_next', ['<C-k>'] = 'move_selection_previous' },
       },
@@ -42,6 +45,7 @@ if ok_telescope then
     },
   })
   local tb = require('telescope.builtin')
+  -- Leader shortcuts to the most common pickers
   vim.keymap.set('n', '<leader>ff', tb.find_files, { desc = 'Find files' })
   vim.keymap.set('n', '<leader>fg', tb.live_grep,  { desc = 'Grep (ripgrep)' })
   vim.keymap.set('n', '<leader>fb', tb.buffers,    { desc = 'Buffers' })
@@ -51,6 +55,7 @@ end
 -- 4) Treesitter (fast syntax + indent) ----------------------------------------------
 local ok_ts, ts = pcall(require, 'nvim-treesitter.configs')
 if ok_ts then
+  -- Install parsers for the languages used most often. Add or remove as needed.
   ts.setup({
     ensure_installed = {
       'bash','lua','vim','vimdoc','json','yaml','markdown','regex',
@@ -68,6 +73,7 @@ local ok_lsp, lspconfig = pcall(require, 'lspconfig')
 if ok_lsp then
   -- diagnostics: subtle and fast
   vim.diagnostic.config({
+    -- Prefix and spacing keep virtual text readable without clutter
     virtual_text = { spacing = 2, prefix = '●' },
     signs = true,
     update_in_insert = false,
@@ -77,8 +83,10 @@ if ok_lsp then
   -- on_attach: buffer-local LSP keymaps
   local on_attach = function(_, bufnr)
     local map = function(mode, lhs, rhs, desc)
+      -- All LSP keymaps share silent and buffer-local options
       vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, silent = true, desc = desc })
     end
+    -- Single-key goto commands keep navigation tight
     map('n', 'gd', vim.lsp.buf.definition,    'Goto Definition')
     map('n', 'gr', vim.lsp.buf.references,    'References')
     map('n', 'gD', vim.lsp.buf.declaration,   'Goto Declaration')
@@ -97,6 +105,7 @@ if ok_lsp then
   end
 
   -- Minimal servers; enable the ones you actually use ------------------------------
+  -- Iterate through the list and set up each server only if available.
   local servers = { 'lua_ls', 'gopls', 'pyright', 'tsserver', 'rust_analyzer' }
   for _, s in ipairs(servers) do
     if lspconfig[s] then
@@ -106,10 +115,10 @@ if ok_lsp then
 end
 
 -- 6) A few quality-of-life mappings --------------------------------------------------
+-- Quickly inspect diagnostics without leaving normal mode.
 vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Line diagnostics' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Diagnostics to LocList' })
 
--- 7) Colorscheme (optional; quick and low-overhead) ---------------------------------
-pcall(vim.cmd.colorscheme, 'nord')
-
+-- 7) Colors inherit from the terminal palette --------------------------------------
+-- No explicit colorscheme so Neovim mirrors whichever terminal theme is active.
 -- That’s it: ~120 lines, fast startup, great nav, syntax, and LSP without heavy deps.
